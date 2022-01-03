@@ -39,7 +39,7 @@ const struct chainparams networks[] = {
      .cli = "bitcoin-cli",
      .cli_args = NULL,
      .cli_min_supported_version = 150000,
-     .dust_limit = { 546 },
+     .dust_limit = { 354 },
      /* BOLT #2:
       *
       * The sending node:
