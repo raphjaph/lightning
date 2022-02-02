@@ -11,7 +11,7 @@
 
 struct crypto_state;
 struct io_conn;
-struct per_peer_state;
+struct peer_fd;
 
 /* By convention, replies are requests + 100 */
 #define SUBD_REPLY_OFFSET 100
@@ -20,6 +20,9 @@ struct per_peer_state;
 
 /* One of our subds. */
 struct subd {
+	/* Inside ld->subds */
+	struct list_node list;
+
 	/* Name, like John, or "lightning_hsmd" */
 	const char *name;
 	/* The Big Cheese. */
@@ -43,11 +46,11 @@ struct subd {
 	unsigned (*msgcb)(struct subd *, const u8 *, const int *);
 	const char *(*msgname)(int msgtype);
 
-	/* If per_peer_state == NULL, it was a disconnect/crash.  Otherwise,
+	/* If peer_fd == NULL, it was a disconnect/crash.  Otherwise,
 	 * sufficient information to hand back to gossipd, including the
 	 * error message we sent them if any. */
 	void (*errcb)(void *channel,
-		      struct per_peer_state *pps,
+		      struct peer_fd *peer_fd,
 		      const struct channel_id *channel_id,
 		      const char *desc,
 		      bool warning,
@@ -74,6 +77,9 @@ struct subd {
 
 	/* Callbacks for replies. */
 	struct list_head reqs;
+
+	/* Did lightningd already wait for this pid? */
+	int *wstatus;
 };
 
 /**
@@ -124,7 +130,7 @@ struct subd *new_channel_subd_(struct lightningd *ld,
 			       unsigned int (*msgcb)(struct subd *, const u8 *,
 						     const int *fds),
 			       void (*errcb)(void *channel,
-					     struct per_peer_state *pps,
+					     struct peer_fd *peer_fd,
 					     const struct channel_id *channel_id,
 					     const char *desc,
 					     bool warning,
@@ -141,7 +147,7 @@ struct subd *new_channel_subd_(struct lightningd *ld,
 			  (msgname), (msgcb),				\
 			  typesafe_cb_postargs(void, void *, (errcb),	\
 					       (channel),		\
-					       struct per_peer_state *,	\
+					       struct peer_fd *,	\
 					       const struct channel_id *, \
 					       const char *, bool, const u8 *), \
 			  typesafe_cb_postargs(void, void *, (billboardcb), \
@@ -218,6 +224,9 @@ struct subd *subd_shutdown(struct subd *subd, unsigned int seconds);
 
 /* Ugly helper to get full pathname of the current binary. */
 const char *find_my_abspath(const tal_t *ctx, const char *argv0);
+
+/* lightningd captures SIGCHLD and waits, but so does subd. */
+void maybe_subd_child(struct lightningd *ld, int childpid, int wstatus);
 
 #if DEVELOPER
 char *opt_subd_dev_disconnect(const char *optarg, struct lightningd *ld);

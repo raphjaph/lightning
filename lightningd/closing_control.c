@@ -14,7 +14,6 @@
 #include <common/json_helpers.h>
 #include <common/json_tok.h>
 #include <common/param.h>
-#include <common/per_peer_state.h>
 #include <common/shutdown_scriptpubkey.h>
 #include <common/timeout.h>
 #include <common/type_to_string.h>
@@ -36,6 +35,7 @@
 #include <lightningd/opening_common.h>
 #include <lightningd/options.h>
 #include <lightningd/peer_control.h>
+#include <lightningd/peer_fd.h>
 #include <lightningd/subd.h>
 #include <openingd/dualopend_wiregen.h>
 #include <wire/common_wiregen.h>
@@ -201,13 +201,16 @@ static bool closing_fee_is_acceptable(struct lightningd *ld,
 	fee = calc_tx_fee(channel->funding_sats, tx);
 	last_fee = calc_tx_fee(channel->funding_sats, channel->last_tx);
 
-	log_debug(channel->log, "Their actual closing tx fee is %s"
-		 " vs previous %s",
-		  type_to_string(tmpctx, struct amount_sat, &fee),
-		  type_to_string(tmpctx, struct amount_sat, &last_fee));
-
 	/* Weight once we add in sigs. */
-	weight = bitcoin_tx_weight(tx) + bitcoin_tx_input_sig_weight() * 2;
+	assert(!tx->wtx->inputs[0].witness
+	       || tx->wtx->inputs[0].witness->num_items == 0);
+	weight = bitcoin_tx_weight(tx) + bitcoin_tx_2of2_input_witness_weight();
+
+	log_debug(channel->log, "Their actual closing tx fee is %s"
+		 " vs previous %s: weight is %"PRIu64,
+		  type_to_string(tmpctx, struct amount_sat, &fee),
+		  type_to_string(tmpctx, struct amount_sat, &last_fee),
+		  weight);
 
 	/* If we don't have a feerate estimate, this gives feerate_floor */
 	min_feerate = feerate_min(ld, &feerate_unknown);
@@ -349,7 +352,7 @@ static unsigned closing_msg(struct subd *sd, const u8 *msg, const int *fds UNUSE
 }
 
 void peer_start_closingd(struct channel *channel,
-			 struct per_peer_state *pps)
+			 struct peer_fd *peer_fd)
 {
 	u8 *initmsg;
 	u32 min_feerate, feerate, *max_feerate;
@@ -378,9 +381,8 @@ void peer_start_closingd(struct channel *channel,
 					   closingd_wire_name, closing_msg,
 					   channel_errmsg,
 					   channel_set_billboard,
-					   take(&pps->peer_fd),
-					   take(&pps->gossip_fd),
-					   take(&pps->gossip_store_fd),
+					   take(&peer_fd->fd),
+					   take(&peer_fd->gossip_fd),
 					   take(&hsmfd),
 					   NULL));
 
@@ -455,7 +457,6 @@ void peer_start_closingd(struct channel *channel,
 
 	initmsg = towire_closingd_init(tmpctx,
 				       chainparams,
-				       pps,
 				       &channel->cid,
 				       &channel->funding,
 				       channel->funding_sats,
@@ -476,7 +477,6 @@ void peer_start_closingd(struct channel *channel,
 					&& channel->closing_fee_negotiation_step_unit == CLOSING_FEE_NEGOTIATION_STEP_UNIT_PERCENTAGE)
 				       /* Always use quickclose with anchors */
 				       || option_anchor_outputs,
-				       IFDEV(ld->dev_fast_gossip, false),
 				       channel->shutdown_wrong_funding);
 
 	/* We don't expect a response: it will give us feedback on

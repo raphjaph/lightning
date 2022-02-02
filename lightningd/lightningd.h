@@ -167,6 +167,9 @@ struct lightningd {
 	/* Our chain topology. */
 	struct chain_topology *topology;
 
+	/* Blockheight (as acknowledged by gossipd) */
+	u32 blockheight;
+
 	/* HTLCs in flight. */
 	struct htlc_in_map htlcs_in;
 	struct htlc_out_map htlcs_out;
@@ -198,6 +201,9 @@ struct lightningd {
 	struct io_conn *stop_conn;
 	/* RPC response to send once we've shut down. */
 	const char *stop_response;
+
+	/* All the subdaemons. */
+	struct list_head subds;
 
 	/* Used these feerates instead of whatever bcli returns (up to
 	 * FEERATE_PENALTY). */
