@@ -8,6 +8,7 @@
 #include <common/crypto_state.h>
 #include <common/node_id.h>
 #include <common/pseudorand.h>
+#include <common/wireaddr.h>
 
 struct io_conn;
 struct connecting;
@@ -25,6 +26,16 @@ struct gossip_state {
 	struct gossip_rcvd_filter *grf;
 	/* Offset within the gossip_store file */
 	size_t off;
+};
+
+/*~ We need to know if we were expecting a pong, and why */
+enum pong_expect_type {
+	/* We weren't expecting a ping reply */
+	PONG_UNEXPECTED = 0,
+	/* We were expecting a ping reply due to ping command */
+	PONG_EXPECTED_COMMAND = 1,
+	/* We were expecting a ping reply due to ping timer */
+	PONG_EXPECTED_PROBING = 2,
 };
 
 /*~ We keep a hash table (ccan/htable) of peers, which tells us what peers are
@@ -64,6 +75,12 @@ struct peer {
 
 	/* We stream from the gossip_store for them, when idle */
 	struct gossip_state gs;
+
+	/* Are we expecting a pong? */
+	enum pong_expect_type expecting_pong;
+
+	/* Random ping timer, to detect dead connections. */
+	struct oneshot *ping_timer;
 
 #if DEVELOPER
 	bool dev_read_enabled;
@@ -126,6 +143,9 @@ struct daemon {
 	/* Connection to main daemon. */
 	struct daemon_conn *master;
 
+	/* Connection to gossip daemon. */
+	struct daemon_conn *gossipd;
+
 	/* Allow localhost to be considered "public": DEVELOPER-only option,
 	 * but for simplicity we don't #if DEVELOPER-wrap it here. */
 	bool dev_allow_localhost;
@@ -145,7 +165,7 @@ struct daemon {
 	struct sockaddr *broken_resolver_response;
 
 	/* File descriptors to listen on once we're activated. */
-	struct listen_fd *listen_fds;
+	const struct listen_fd **listen_fds;
 
 	/* Allow to define the default behavior of tor services calls*/
 	bool use_v3_autotor;
@@ -180,6 +200,7 @@ struct io_plan *peer_connected(struct io_conn *conn,
 			       struct daemon *daemon,
 			       const struct node_id *id,
 			       const struct wireaddr_internal *addr,
+			       const struct wireaddr *remote_addr,
 			       struct crypto_state *cs,
 			       const u8 *their_features TAKES,
 			       bool incoming);

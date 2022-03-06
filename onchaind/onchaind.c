@@ -247,6 +247,31 @@ static void record_external_deposit(const struct tracked_output *out,
 	record_external_output(&out->outpoint, out->sat, blockheight, tag);
 }
 
+static void record_mutual_close(const struct tx_parts *tx,
+				const u8 *remote_scriptpubkey,
+				u32 blockheight)
+{
+	/* FIXME: if we ever change how closes happen, this will
+	 * need to be updated as there's no longer 1 output
+	 * per peer */
+	for (size_t i = 0; i < tal_count(tx->outputs); i++) {
+		struct bitcoin_outpoint out;
+
+		if (!wally_tx_output_scripteq(tx->outputs[i],
+					      remote_scriptpubkey))
+			continue;
+
+		out.n = i;
+		out.txid = tx->txid;
+		record_external_output(&out,
+				       amount_sat(tx->outputs[i]->satoshi),
+				       blockheight,
+				       TO_THEM);
+		break;
+	}
+}
+
+
 static void record_channel_deposit(struct tracked_output *out,
 				   u32 blockheight, enum mvt_tag tag)
 {
@@ -592,7 +617,7 @@ static struct bitcoin_tx *tx_to_us(const tal_t *ctx,
 			     NULL, out->sat, NULL, wscript);
 
 	bitcoin_tx_add_output(
-	    tx, scriptpubkey_p2wpkh(tx, &our_wallet_pubkey), NULL, out->sat);
+	    tx, scriptpubkey_p2wpkh(tmpctx, &our_wallet_pubkey), NULL, out->sat);
 
 	/* Worst-case sig is 73 bytes */
 	weight = bitcoin_tx_weight(tx) + 1 + 3 + 73 + 0 + tal_count(wscript);
@@ -3860,7 +3885,8 @@ int main(int argc, char *argv[])
 	send_coin_mvt(take(new_coin_channel_close(NULL, &tx->txid,
 						  &funding, tx_blockheight,
 						  our_msat,
-						  funding_sats)));
+						  funding_sats,
+						  tal_count(tx->outputs))));
 
 	status_debug("Remote per-commit point: %s",
 		     type_to_string(tmpctx, struct pubkey,
@@ -3881,9 +3907,11 @@ int main(int argc, char *argv[])
 	 * without any pending payments) and publish it on the blockchain (see
 	 * [BOLT #2: Channel Close](02-peer-protocol.md#channel-close)).
 	 */
-	if (is_mutual_close(tx, scriptpubkey[LOCAL], scriptpubkey[REMOTE]))
+	if (is_mutual_close(tx, scriptpubkey[LOCAL], scriptpubkey[REMOTE])) {
+		record_mutual_close(tx, scriptpubkey[REMOTE],
+				    tx_blockheight);
 		handle_mutual_close(outs, tx);
-	else {
+	} else {
 		/* BOLT #5:
 		 *
 		 * 2. The bad way (*unilateral close*): something goes wrong,

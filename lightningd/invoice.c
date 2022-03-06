@@ -2,6 +2,7 @@
 #include <ccan/array_size/array_size.h>
 #include <ccan/asort/asort.h>
 #include <ccan/cast/cast.h>
+#include <ccan/json_escape/json_escape.h>
 #include <ccan/str/hex/hex.h>
 #include <ccan/tal/str/str.h>
 #include <common/bolt11_json.h>
@@ -16,6 +17,7 @@
 #include <common/random_select.h>
 #include <common/timeout.h>
 #include <common/type_to_string.h>
+#include <db/exec.h>
 #include <errno.h>
 #include <hsmd/hsmd_wiregen.h>
 #include <lightningd/channel.h>
@@ -39,7 +41,8 @@ static void json_add_invoice(struct json_stream *response,
 			     const struct invoice_details *inv)
 {
 	json_add_escaped_string(response, "label", inv->label);
-	json_add_invstring(response, inv->invstring);
+	if (inv->invstring)
+		json_add_invstring(response, inv->invstring);
 	json_add_sha256(response, "payment_hash", &inv->rhash);
 	if (inv->msat)
 		json_add_amount_msat_compat(response, *inv->msat,

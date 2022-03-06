@@ -2,6 +2,7 @@
 #include <bitcoin/feerate.h>
 #include <common/key_derive.h>
 #include <common/type_to_string.h>
+#include <db/exec.h>
 #include <errno.h>
 #include <hsmd/capabilities.h>
 #include <inttypes.h>
@@ -265,7 +266,7 @@ static void handle_onchain_log_coin_move(struct channel *channel, const u8 *msg)
 	if (!mvt->account_name)
 		mvt->account_name = type_to_string(mvt, struct channel_id,
 						   &channel->cid);
-	else if (chain_mvt_is_external(mvt))
+	else
 		mvt->originating_acct = type_to_string(mvt, struct channel_id,
 						       &channel->cid);
 	notify_chain_mvt(channel->peer->ld, mvt);
@@ -469,7 +470,9 @@ static void onchain_add_utxo(struct channel *channel, const u8 *msg)
 				 csv_lock);
 
 	mvt = new_coin_wallet_deposit(msg, &outpoint, blockheight,
-			              amount, CHANNEL_CLOSE);
+			              amount, DEPOSIT);
+	mvt->originating_acct = type_to_string(mvt, struct channel_id,
+					       &channel->cid);
 
 	notify_chain_mvt(channel->peer->ld, mvt);
 }
@@ -570,10 +573,15 @@ static void onchain_error(struct channel *channel,
 			  bool warning UNUSED,
 			  const u8 *err_for_them UNUSED)
 {
+	channel_set_owner(channel, NULL);
+
+	/* This happens on shutdown: fine */
+	if (channel->peer->ld->state == LD_STATE_SHUTDOWN)
+		return;
+
 	/* FIXME: re-launch? */
 	log_broken(channel->log, "%s", desc);
 	channel_set_billboard(channel, true, desc);
-	channel_set_owner(channel, NULL);
 }
 
 /* With a reorg, this can get called multiple times; each time we'll kill

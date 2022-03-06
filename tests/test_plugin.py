@@ -9,7 +9,8 @@ from utils import (
     DEVELOPER, only_one, sync_blockheight, TIMEOUT, wait_for, TEST_NETWORK,
     DEPRECATED_APIS, expected_peer_features, expected_node_features,
     expected_channel_features, account_balance,
-    check_coin_moves, first_channel_id, EXPERIMENTAL_DUAL_FUND
+    check_coin_moves, first_channel_id, EXPERIMENTAL_DUAL_FUND,
+    mine_funding_to_announce, EXPERIMENTAL_FEATURES
 )
 
 import ast
@@ -448,6 +449,31 @@ def test_plugin_connected_hook_chaining(node_factory):
 
     wait_for(check_disconnect)
     assert not l1.daemon.is_in_log(f"peer_connected_logger_b {l3id}")
+
+
+@unittest.skipIf(not EXPERIMENTAL_FEATURES, "BOLT1 remote_addr #917")
+def test_peer_connected_remote_addr(node_factory):
+    """This tests the optional tlv `remote_addr` being passed to a plugin.
+
+    The optional tlv `remote_addr` should only be visible to the initiator l1.
+    """
+    l1, l2 = node_factory.get_nodes(2, opts={'plugin': os.path.join(os.getcwd(), 'tests/plugins/peer_connected_logger_a.py')})
+    l1id = l1.info['id']
+    l2id = l2.info['id']
+
+    l1.connect(l2)
+    l1log = l1.daemon.wait_for_log(f"peer_connected_logger_a {l2id}")
+    l2log = l2.daemon.wait_for_log(f"peer_connected_logger_a {l1id}")
+
+    # the log entries are followed by the peer_connected payload as dict {} like:
+    # {'id': '022d223...', 'direction': 'out', 'addr': '127.0.0.1:35289',
+    #  'remote_addr': '127.0.0.1:59582', 'features': '8808226aa2'}
+    l1payload = eval(l1log[l1log.find('{'):])
+    l2payload = eval(l2log[l2log.find('{'):])
+
+    # check that l1 sees its remote_addr as l2 sees l1
+    assert(l1payload['remote_addr'] == l2payload['addr'])
+    assert(not l2payload.get('remote_addr'))  # l2 can't see a remote_addr
 
 
 def test_async_rpcmethod(node_factory, executor):
@@ -1723,7 +1749,9 @@ def test_hook_crash(node_factory, executor, bitcoind):
             n.rpc.plugin_start(p)
         l1.openchannel(n, 10**6, confirm=False, wait_for_announce=False)
 
-    bitcoind.generate_block(6)
+    # Mine final openchannel tx first.
+    sync_blockheight(bitcoind, [l1] + nodes)
+    mine_funding_to_announce(bitcoind, [l1] + nodes, wait_for_mempool=1)
 
     wait_for(lambda: len(l1.rpc.listchannels()['channels']) == 2 * len(perm))
 
@@ -1918,7 +1946,7 @@ def test_coin_movement_notices(node_factory, bitcoind, chainparams):
         {'may_reconnect': True, 'plugin': coin_plugin},
     ], wait_for_announce=True)
 
-    bitcoind.generate_block(5)
+    mine_funding_to_announce(bitcoind, [l1, l2, l3])
     wait_for(lambda: len(l1.rpc.listchannels()['channels']) == 4)
     amount = 10**8
 
@@ -2509,9 +2537,7 @@ def test_plugin_shutdown(node_factory):
 
     # Now, should also shutdown or timeout on finish, RPC calls then fail with error code -5
     l1.rpc.plugin_start(p, dont_shutdown=True)
-    needle = l1.daemon.logsearch_start
     l1.rpc.stop()
-    l1.daemon.wait_for_log(r"test_libplugin: shutdown called")
-    l1.daemon.logsearch_start = needle          # we don't know what comes first
-    l1.daemon.is_in_log(r'misc_notifications.py: via lightningd shutdown, datastore failed')
-    l1.daemon.is_in_log(r'test_libplugin: failed to self-terminate in time, killing.')
+    l1.daemon.wait_for_logs(['test_libplugin: shutdown called',
+                             'misc_notifications.py: via lightningd shutdown, datastore failed',
+                             'test_libplugin: failed to self-terminate in time, killing.'])

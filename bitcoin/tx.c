@@ -9,8 +9,6 @@
 #include <wire/wire.h>
 #include <bitcoin/tx.h>
 
-#define SEGREGATED_WITNESS_FLAG 0x1
-
 struct bitcoin_tx_output *new_tx_output(const tal_t *ctx,
 					struct amount_sat amount,
 					const u8 *script)
@@ -61,7 +59,7 @@ done:
 }
 
 int bitcoin_tx_add_output(struct bitcoin_tx *tx, const u8 *script,
-			  u8 *wscript, struct amount_sat amount)
+			  const u8 *wscript, struct amount_sat amount)
 {
 	size_t i = tx->wtx->num_outputs;
 	struct wally_tx_output *output;
@@ -199,7 +197,7 @@ int bitcoin_tx_add_input(struct bitcoin_tx *tx,
 			  input_wscript, NULL);
 
 	if (input_wscript) {
-		scriptPubkey = scriptpubkey_p2wsh(tx->psbt, input_wscript);
+		scriptPubkey = scriptpubkey_p2wsh(tmpctx, input_wscript);
 	}
 
 	assert(scriptPubkey);

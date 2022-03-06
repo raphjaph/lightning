@@ -10,6 +10,7 @@ ALL_TEST_PROGRAMS += $(LIGHTNINGD_TEST_PROGRAMS)
 LIGHTNINGD_TEST_COMMON_OBJS :=			\
 	common/amount.o				\
 	common/autodata.o			\
+	common/base32.o				\
 	common/bech32.o				\
 	common/daemon_conn.o			\
 	common/htlc_state.o			\
@@ -23,10 +24,11 @@ LIGHTNINGD_TEST_COMMON_OBJS :=			\
 	common/utils.o				\
 	common/utxo.o				\
 	common/type_to_string.o			\
-	common/permute_tx.o
+	common/permute_tx.o			\
+	common/wireaddr.o			\
 
 $(LIGHTNINGD_TEST_PROGRAMS): $(CCAN_OBJS) $(BITCOIN_OBJS) $(WIRE_OBJS) $(LIGHTNINGD_TEST_COMMON_OBJS)
 
-$(LIGHTNINGD_TEST_OBJS): $(LIGHTNINGD_HEADERS) $(LIGHTNINGD_SRC) $(LIGHTNINGD_SRC_NOHDR)
+$(LIGHTNINGD_TEST_OBJS): $(LIGHTNINGD_HDRS) $(LIGHTNINGD_SRC) $(LIGHTNINGD_SRC_NOHDR)
 
 check-units: $(LIGHTNINGD_TEST_PROGRAMS:%=unittest/%)

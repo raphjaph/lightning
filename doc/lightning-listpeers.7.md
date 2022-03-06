@@ -4,7 +4,7 @@ lightning-listpeers -- Command returning data on connected lightning nodes
 SYNOPSIS
 --------
 
-**listpeers** \[*id*\] \[*level*\]
+**listpeers** [*id*] [*level*]
 
 DESCRIPTION
 -----------
@@ -55,6 +55,7 @@ On success, an object containing **peers** is returned.  It is an array of objec
   - **short_channel_id** (short_channel_id, optional): The short_channel_id (once locked in)
   - **channel_id** (hex, optional): The full channel_id (always 64 characters)
   - **funding_txid** (txid, optional): ID of the funding transaction
+  - **funding_outnum** (u32, optional): The 0-based output number of the funding transaction which opens the channel
   - **initial_feerate** (string, optional): For inflight opens, the first feerate used to initiate the channel open
   - **last_feerate** (string, optional): For inflight opens, the most recent feerate used on the channel open
   - **next_feerate** (string, optional): For inflight opens, the next feerate we'll use for the channel open
@@ -72,6 +73,7 @@ On success, an object containing **peers** is returned.  It is an array of objec
   - **funding** (object, optional):
     - **local_msat** (msat): Amount of channel we funded
     - **remote_msat** (msat): Amount of channel they funded
+    - **pushed_msat** (msat): Amount pushed from opener to peer
   - **to_us_msat** (msat, optional): how much of channel is owed to us
   - **min_to_us_msat** (msat, optional): least amount owed to us ever
   - **max_to_us_msat** (msat, optional): most amount owed to us ever
@@ -376,4 +378,4 @@ Main web site: <https://github.com/ElementsProject/lightning> Lightning
 RFC site (BOLT \#9):
 <https://github.com/lightningnetwork/lightning-rfc/blob/master/09-features.md>
 
-[comment]: # ( SHA256STAMP:956a13291bebc808bf1505a5d2030280aca441c5ca9991a6baae70c8715429a4)
+[comment]: # ( SHA256STAMP:001e3cf495571bb09fe29f74adde8a6e40e69ddb1169934924eaf901a1e5f3c0)

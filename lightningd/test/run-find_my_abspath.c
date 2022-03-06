@@ -1,8 +1,6 @@
 #include "config.h"
 #define main unused_main
 int unused_main(int argc, char *argv[]);
-#include "../../common/base32.c"
-#include "../../common/wireaddr.c"
 #include "../io_loop_with_timers.c"
 #include "../lightningd.c"
 #include "../subd.c"
@@ -168,7 +166,7 @@ struct log *new_log(const tal_t *ctx UNNEEDED, struct log_book *record UNNEEDED,
 struct log_book *new_log_book(struct lightningd *ld UNNEEDED, size_t max_mem UNNEEDED)
 { fprintf(stderr, "new_log_book called!\n"); abort(); }
 /* Generated stub for new_peer_fd_arr */
-struct peer_fd *new_peer_fd_arr(const tal_t *ctx UNNEEDED, const int *fds UNNEEDED)
+struct peer_fd *new_peer_fd_arr(const tal_t *ctx UNNEEDED, const int *fd UNNEEDED)
 { fprintf(stderr, "new_peer_fd_arr called!\n"); abort(); }
 /* Generated stub for new_topology */
 struct chain_topology *new_topology(struct lightningd *ld UNNEEDED, struct log *log UNNEEDED)

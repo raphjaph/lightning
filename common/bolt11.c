@@ -224,7 +224,7 @@ static void decode_h(struct bolt11 *b11,
 static char *decode_x(struct bolt11 *b11,
 		      struct hash_u5 *hu5,
 		      u5 **data, size_t *data_len,
-		      size_t data_length, const bool *have_x)
+		      size_t data_length, bool *have_x)
 {
 	if (*have_x)
 		return unknown_field(b11, hu5, data, data_len, 'x',
@@ -234,6 +234,8 @@ static char *decode_x(struct bolt11 *b11,
 	if (!pull_uint(hu5, data, data_len, &b11->expiry, data_length * 5))
 		return tal_fmt(b11, "x: length %zu chars is excessive",
 			       *data_len);
+
+	*have_x = true;
 	return NULL;
 }
 
@@ -245,7 +247,7 @@ static char *decode_x(struct bolt11 *b11,
 static char *decode_c(struct bolt11 *b11,
 		      struct hash_u5 *hu5,
 		      u5 **data, size_t *data_len,
-		      size_t data_length, const bool *have_c)
+		      size_t data_length, bool *have_c)
 {
 	u64 c;
 	if (*have_c)
@@ -261,6 +263,7 @@ static char *decode_c(struct bolt11 *b11,
 	if (b11->min_final_cltv_expiry != c)
 		return tal_fmt(b11, "c: %"PRIu64" is too large", c);
 
+	*have_c = true;
 	return NULL;
 }
 
@@ -439,7 +442,7 @@ static char *decode_r(struct bolt11 *b11,
 	size_t rlen = data_length * 5 / 8;
 	u8 *r8 = tal_arr(tmpctx, u8, rlen);
 	size_t n = 0;
-	struct route_info *r = tal_arr(tmpctx, struct route_info, n);
+	struct route_info *r = tal_arr(b11->routes, struct route_info, n);
 	const u8 *cursor = r8;
 
 	/* Route hops don't split in 5 bit boundaries, so convert whole thing */
@@ -454,7 +457,7 @@ static char *decode_r(struct bolt11 *b11,
 	} while (rlen);
 
 	/* Append route */
-	tal_arr_expand(&b11->routes, tal_steal(b11, r));
+	tal_arr_expand(&b11->routes, r);
 	return NULL;
 }
 
